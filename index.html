@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The League of Extraordinary Gentlemen — FPL Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0e16;
+    --panel: #131826;
+    --panel-2: #1a2030;
+    --line: #232a3d;
+    --text: #e6e9f2;
+    --muted: #8a93a8;
+    --accent: #37d4a3;
+    --accent-2: #6ea8ff;
+    --warn: #ffb454;
+    --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 20px 80px; }
+  header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px; margin-bottom: 28px;
+    border-bottom: 1px solid var(--line); padding-bottom: 20px;
+  }
+  h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    background: var(--panel); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--muted);
+  }
+  .badge strong { color: var(--text); font-weight: 600; }
+  .grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px;
+  }
+  .card h2 {
+    margin: 0 0 4px; font-size: 16px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  }
+  .card .desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+  .chart-box { position: relative; height: 320px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rank { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .move { font-size: 12px; }
+  .move.up { color: var(--accent); }
+  .move.down { color: var(--bad); }
+  .move.same { color: var(--muted); }
+  .stat-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
+  @media (min-width: 700px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } }
+  .stat {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px;
+  }
+  .stat .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .stat .who { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  footer { margin-top: 36px; color: var(--muted); font-size: 12px; text-align: center; }
+  footer a { color: var(--accent-2); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="league-name">FPL League</h1>
+      <div class="sub" id="league-sub">Loading…</div>
+    </div>
+    <div class="badges">
+      <div class="badge">GW <strong id="badge-gw">–</strong></div>
+      <div class="badge">Managers <strong id="badge-count">–</strong></div>
+      <div class="badge">Updated <strong id="badge-updated">–</strong></div>
+    </div>
+  </header>
+
+  <section class="card" style="margin-bottom: 20px;">
+    <h2>Hall of Fame &amp; Shame</h2>
+    <div class="desc">Season-defining moments. Don't bring these up unless you want a fight.</div>
+    <div class="stat-grid" id="stats"></div>
+  </section>
+
+  <section class="grid grid-2" style="margin-bottom: 20px;">
+    <div class="card">
+      <h2>Total points trajectory</h2>
+      <div class="desc">Cumulative points across the season.</div>
+      <div class="chart-box"><canvas id="chart-total"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Gameweek points (last 10)</h2>
+      <div class="desc">Recent form. Higher = on a heater.</div>
+      <div class="chart-box"><canvas id="chart-gw"></canvas></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Standings</h2>
+    <div class="desc">Live league table.</div>
+    <div style="overflow-x:auto;">
+      <table id="standings">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Manager</th>
+            <th>Team</th>
+            <th class="num">GW</th>
+            <th class="num">Total</th>
+            <th class="num">Bench (GW)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    Auto-rebuilt from <a href="https://fantasy.premierleague.com/api/leagues-classic/2007916/standings/" target="_blank">FPL public API</a>.
+    Data &amp; charts: Premier League / FPL.
+  </footer>
+</div>
+
+<script id="dashboard-data" type="application/json">{"league": {"id": 2007916, "name": "The League of Extraordinary Gentlemen"}, "current_gw": 34, "generated_at": "2026-04-26T16:05:42+00:00", "managers": [{"entry_id": 1000000, "player_name": "Charles Cochin", "team_name": "Saka Knife Massacre", "rank": 2, "last_rank": 3, "total_points": 2081, "event_total": 47, "gameweeks": [{"gw": 1, "points": 73, "total_points": 73, "rank": null, "overall_rank": null, "bench": 6, "transfers": 1, "transfer_cost": 0}, {"gw": 2, "points": 57, "total_points": 130, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 4}, {"gw": 3, "points": 55, "total_points": 185, "rank": null, "overall_rank": null, "bench": 6, "transfers": 1, "transfer_cost": 0}, {"gw": 4, "points": 55, "total_points": 240, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 8}, {"gw": 5, "points": 46, "total_points": 286, "rank": null, "overall_rank": null, "bench": 1, "transfers": 1, "transfer_cost": 4}, {"gw": 6, "points": 31, "total_points": 317, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 0}, {"gw": 7, "points": 54, "total_points": 371, "rank": null, "overall_rank": null, "bench": 2, "transfers": 1, "transfer_cost": 0}, {"gw": 8, "points": 75, "total_points": 446, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 9, "points": 88, "total_points": 534, "rank": null, "overall_rank": null, "bench": 10, "transfers": 2, "transfer_cost": 0}, {"gw": 10, "points": 56, "total_points": 590, "rank": null, "overall_rank": null, "bench": 1, "transfers": 3, "transfer_cost": 0}, {"gw": 11, "points": 27, "total_points": 617, "rank": null, "overall_rank": null, "bench": 3, "transfers": 2, "transfer_cost": 4}, {"gw": 12, "points": 62, "total_points": 679, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 13, "points": 94, "total_points": 773, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 14, "points": 55, "total_points": 828, "rank": null, "overall_rank": null, "bench": 11, "transfers": 2, "transfer_cost": 0}, {"gw": 15, "points": 51, "total_points": 879, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 8}, {"gw": 16, "points": 83, "total_points": 962, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 4}, {"gw": 17, "points": 58, "total_points": 1020, "rank": null, "overall_rank": null, "bench": 3, "transfers": 3, "transfer_cost": 0}, {"gw": 18, "points": 85, "total_points": 1105, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 8}, {"gw": 19, "points": 45, "total_points": 1150, "rank": null, "overall_rank": null, "bench": 12, "transfers": 0, "transfer_cost": 0}, {"gw": 20, "points": 73, "total_points": 1223, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 0}, {"gw": 21, "points": 95, "total_points": 1318, "rank": null, "overall_rank": null, "bench": 9, "transfers": 2, "transfer_cost": 0}, {"gw": 22, "points": 49, "total_points": 1367, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 0}, {"gw": 23, "points": 58, "total_points": 1425, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 8}, {"gw": 24, "points": 26, "total_points": 1451, "rank": null, "overall_rank": null, "bench": 1, "transfers": 3, "transfer_cost": 0}, {"gw": 25, "points": 71, "total_points": 1522, "rank": null, "overall_rank": null, "bench": 19, "transfers": 3, "transfer_cost": 0}, {"gw": 26, "points": 60, "total_points": 1582, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 8}, {"gw": 27, "points": 74, "total_points": 1656, "rank": null, "overall_rank": null, "bench": 11, "transfers": 0, "transfer_cost": 4}, {"gw": 28, "points": 20, "total_points": 1676, "rank": null, "overall_rank": null, "bench": 15, "transfers": 2, "transfer_cost": 4}, {"gw": 29, "points": 61, "total_points": 1737, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 8}, {"gw": 30, "points": 82, "total_points": 1819, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 0}, {"gw": 31, "points": 56, "total_points": 1875, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 8}, {"gw": 32, "points": 69, "total_points": 1944, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 4}, {"gw": 33, "points": 90, "total_points": 2034, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 8}, {"gw": 34, "points": 47, "total_points": 2081, "rank": null, "overall_rank": null, "bench": 5, "transfers": 2, "transfer_cost": 0}]}, {"entry_id": 1000001, "player_name": "Tom Riley", "team_name": "FC Bayern Munchies", "rank": 3, "last_rank": 2, "total_points": 2081, "event_total": 37, "gameweeks": [{"gw": 1, "points": 62, "total_points": 62, "rank": null, "overall_rank": null, "bench": 1, "transfers": 0, "transfer_cost": 4}, {"gw": 2, "points": 56, "total_points": 118, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 0}, {"gw": 3, "points": 58, "total_points": 176, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 0}, {"gw": 4, "points": 54, "total_points": 230, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 0}, {"gw": 5, "points": 34, "total_points": 264, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 0}, {"gw": 6, "points": 33, "total_points": 297, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 4}, {"gw": 7, "points": 59, "total_points": 356, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 4}, {"gw": 8, "points": 84, "total_points": 440, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 4}, {"gw": 9, "points": 45, "total_points": 485, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 0}, {"gw": 10, "points": 80, "total_points": 565, "rank": null, "overall_rank": null, "bench": 6, "transfers": 1, "transfer_cost": 0}, {"gw": 11, "points": 81, "total_points": 646, "rank": null, "overall_rank": null, "bench": 8, "transfers": 1, "transfer_cost": 0}, {"gw": 12, "points": 87, "total_points": 733, "rank": null, "overall_rank": null, "bench": 1, "transfers": 0, "transfer_cost": 4}, {"gw": 13, "points": 60, "total_points": 793, "rank": null, "overall_rank": null, "bench": 11, "transfers": 1, "transfer_cost": 4}, {"gw": 14, "points": 86, "total_points": 879, "rank": null, "overall_rank": null, "bench": 12, "transfers": 3, "transfer_cost": 0}, {"gw": 15, "points": 65, "total_points": 944, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 0}, {"gw": 16, "points": 73, "total_points": 1017, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 4}, {"gw": 17, "points": 29, "total_points": 1046, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 0}, {"gw": 18, "points": 44, "total_points": 1090, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 0}, {"gw": 19, "points": 66, "total_points": 1156, "rank": null, "overall_rank": null, "bench": 10, "transfers": 1, "transfer_cost": 4}, {"gw": 20, "points": 66, "total_points": 1222, "rank": null, "overall_rank": null, "bench": 10, "transfers": 0, "transfer_cost": 4}, {"gw": 21, "points": 70, "total_points": 1292, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 0}, {"gw": 22, "points": 45, "total_points": 1337, "rank": null, "overall_rank": null, "bench": 1, "transfers": 0, "transfer_cost": 0}, {"gw": 23, "points": 89, "total_points": 1426, "rank": null, "overall_rank": null, "bench": 2, "transfers": 1, "transfer_cost": 4}, {"gw": 24, "points": 45, "total_points": 1471, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 0}, {"gw": 25, "points": 58, "total_points": 1529, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 0}, {"gw": 26, "points": 86, "total_points": 1615, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 4}, {"gw": 27, "points": 48, "total_points": 1663, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 0}, {"gw": 28, "points": 62, "total_points": 1725, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 4}, {"gw": 29, "points": 57, "total_points": 1782, "rank": null, "overall_rank": null, "bench": 4, "transfers": 2, "transfer_cost": 0}, {"gw": 30, "points": 77, "total_points": 1859, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 31, "points": 65, "total_points": 1924, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 0}, {"gw": 32, "points": 35, "total_points": 1959, "rank": null, "overall_rank": null, "bench": 2, "transfers": 1, "transfer_cost": 4}, {"gw": 33, "points": 85, "total_points": 2044, "rank": null, "overall_rank": null, "bench": 11, "transfers": 1, "transfer_cost": 4}, {"gw": 34, "points": 37, "total_points": 2081, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 8}]}, {"entry_id": 1000002, "player_name": "Aman Patel", "team_name": "Haaland Oates", "rank": 1, "last_rank": 1, "total_points": 2186, "event_total": 32, "gameweeks": [{"gw": 1, "points": 20, "total_points": 20, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 8}, {"gw": 2, "points": 55, "total_points": 75, "rank": null, "overall_rank": null, "bench": 3, "transfers": 3, "transfer_cost": 0}, {"gw": 3, "points": 51, "total_points": 126, "rank": null, "overall_rank": null, "bench": 3, "transfers": 2, "transfer_cost": 0}, {"gw": 4, "points": 83, "total_points": 209, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 0}, {"gw": 5, "points": 37, "total_points": 246, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 0}, {"gw": 6, "points": 85, "total_points": 331, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 7, "points": 77, "total_points": 408, "rank": null, "overall_rank": null, "bench": 12, "transfers": 2, "transfer_cost": 4}, {"gw": 8, "points": 91, "total_points": 499, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 8}, {"gw": 9, "points": 64, "total_points": 563, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 0}, {"gw": 10, "points": 55, "total_points": 618, "rank": null, "overall_rank": null, "bench": 14, "transfers": 1, "transfer_cost": 0}, {"gw": 11, "points": 56, "total_points": 674, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 0}, {"gw": 12, "points": 45, "total_points": 719, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 0}, {"gw": 13, "points": 87, "total_points": 806, "rank": null, "overall_rank": null, "bench": 1, "transfers": 0, "transfer_cost": 8}, {"gw": 14, "points": 45, "total_points": 851, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 0}, {"gw": 15, "points": 62, "total_points": 913, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 16, "points": 57, "total_points": 970, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 4}, {"gw": 17, "points": 65, "total_points": 1035, "rank": null, "overall_rank": null, "bench": 6, "transfers": 1, "transfer_cost": 4}, {"gw": 18, "points": 75, "total_points": 1110, "rank": null, "overall_rank": null, "bench": 6, "transfers": 1, "transfer_cost": 4}, {"gw": 19, "points": 69, "total_points": 1179, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 0}, {"gw": 20, "points": 62, "total_points": 1241, "rank": null, "overall_rank": null, "bench": 8, "transfers": 0, "transfer_cost": 0}, {"gw": 21, "points": 65, "total_points": 1306, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 4}, {"gw": 22, "points": 58, "total_points": 1364, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 0}, {"gw": 23, "points": 91, "total_points": 1455, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 0}, {"gw": 24, "points": 76, "total_points": 1531, "rank": null, "overall_rank": null, "bench": 14, "transfers": 3, "transfer_cost": 8}, {"gw": 25, "points": 80, "total_points": 1611, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 26, "points": 60, "total_points": 1671, "rank": null, "overall_rank": null, "bench": 4, "transfers": 0, "transfer_cost": 4}, {"gw": 27, "points": 64, "total_points": 1735, "rank": null, "overall_rank": null, "bench": 13, "transfers": 3, "transfer_cost": 0}, {"gw": 28, "points": 47, "total_points": 1782, "rank": null, "overall_rank": null, "bench": 12, "transfers": 1, "transfer_cost": 0}, {"gw": 29, "points": 70, "total_points": 1852, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 0}, {"gw": 30, "points": 89, "total_points": 1941, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 31, "points": 47, "total_points": 1988, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 0}, {"gw": 32, "points": 94, "total_points": 2082, "rank": null, "overall_rank": null, "bench": 13, "transfers": 1, "transfer_cost": 4}, {"gw": 33, "points": 72, "total_points": 2154, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 34, "points": 32, "total_points": 2186, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 4}]}, {"entry_id": 1000003, "player_name": "Will Hughes", "team_name": "Inter Milanese", "rank": 7, "last_rank": 7, "total_points": 1856, "event_total": 45, "gameweeks": [{"gw": 1, "points": 41, "total_points": 41, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 0}, {"gw": 2, "points": 77, "total_points": 118, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 3, "points": 20, "total_points": 138, "rank": null, "overall_rank": null, "bench": 10, "transfers": 2, "transfer_cost": 4}, {"gw": 4, "points": 45, "total_points": 183, "rank": null, "overall_rank": null, "bench": 13, "transfers": 2, "transfer_cost": 4}, {"gw": 5, "points": 52, "total_points": 235, "rank": null, "overall_rank": null, "bench": 9, "transfers": 3, "transfer_cost": 8}, {"gw": 6, "points": 56, "total_points": 291, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 8}, {"gw": 7, "points": 84, "total_points": 375, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 4}, {"gw": 8, "points": 42, "total_points": 417, "rank": null, "overall_rank": null, "bench": 4, "transfers": 0, "transfer_cost": 0}, {"gw": 9, "points": 54, "total_points": 471, "rank": null, "overall_rank": null, "bench": 10, "transfers": 2, "transfer_cost": 4}, {"gw": 10, "points": 33, "total_points": 504, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 8}, {"gw": 11, "points": 62, "total_points": 566, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 0}, {"gw": 12, "points": 71, "total_points": 637, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 13, "points": 62, "total_points": 699, "rank": null, "overall_rank": null, "bench": 3, "transfers": 0, "transfer_cost": 0}, {"gw": 14, "points": 83, "total_points": 782, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 15, "points": 37, "total_points": 819, "rank": null, "overall_rank": null, "bench": 8, "transfers": 1, "transfer_cost": 8}, {"gw": 16, "points": 52, "total_points": 871, "rank": null, "overall_rank": null, "bench": 1, "transfers": 1, "transfer_cost": 0}, {"gw": 17, "points": 58, "total_points": 929, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 18, "points": 65, "total_points": 994, "rank": null, "overall_rank": null, "bench": 13, "transfers": 3, "transfer_cost": 0}, {"gw": 19, "points": 21, "total_points": 1015, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 4}, {"gw": 20, "points": 72, "total_points": 1087, "rank": null, "overall_rank": null, "bench": 9, "transfers": 2, "transfer_cost": 4}, {"gw": 21, "points": 37, "total_points": 1124, "rank": null, "overall_rank": null, "bench": 1, "transfers": 3, "transfer_cost": 4}, {"gw": 22, "points": 49, "total_points": 1173, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 4}, {"gw": 23, "points": 58, "total_points": 1231, "rank": null, "overall_rank": null, "bench": 9, "transfers": 2, "transfer_cost": 4}, {"gw": 24, "points": 45, "total_points": 1276, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 0}, {"gw": 25, "points": 56, "total_points": 1332, "rank": null, "overall_rank": null, "bench": 3, "transfers": 2, "transfer_cost": 0}, {"gw": 26, "points": 64, "total_points": 1396, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 0}, {"gw": 27, "points": 51, "total_points": 1447, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 28, "points": 45, "total_points": 1492, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 4}, {"gw": 29, "points": 90, "total_points": 1582, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 4}, {"gw": 30, "points": 62, "total_points": 1644, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 4}, {"gw": 31, "points": 75, "total_points": 1719, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 4}, {"gw": 32, "points": 30, "total_points": 1749, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 4}, {"gw": 33, "points": 62, "total_points": 1811, "rank": null, "overall_rank": null, "bench": 10, "transfers": 0, "transfer_cost": 4}, {"gw": 34, "points": 45, "total_points": 1856, "rank": null, "overall_rank": null, "bench": 11, "transfers": 3, "transfer_cost": 8}]}, {"entry_id": 1000004, "player_name": "Kit Sayers", "team_name": "Salah Dressing", "rank": 8, "last_rank": 8, "total_points": 1749, "event_total": 75, "gameweeks": [{"gw": 1, "points": 43, "total_points": 43, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 4}, {"gw": 2, "points": 30, "total_points": 73, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 8}, {"gw": 3, "points": 20, "total_points": 93, "rank": null, "overall_rank": null, "bench": 9, "transfers": 1, "transfer_cost": 0}, {"gw": 4, "points": 51, "total_points": 144, "rank": null, "overall_rank": null, "bench": 9, "transfers": 3, "transfer_cost": 0}, {"gw": 5, "points": 33, "total_points": 177, "rank": null, "overall_rank": null, "bench": 13, "transfers": 2, "transfer_cost": 4}, {"gw": 6, "points": 52, "total_points": 229, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 8}, {"gw": 7, "points": 20, "total_points": 249, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 0}, {"gw": 8, "points": 34, "total_points": 283, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 0}, {"gw": 9, "points": 63, "total_points": 346, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 10, "points": 57, "total_points": 403, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 4}, {"gw": 11, "points": 71, "total_points": 474, "rank": null, "overall_rank": null, "bench": 4, "transfers": 2, "transfer_cost": 0}, {"gw": 12, "points": 64, "total_points": 538, "rank": null, "overall_rank": null, "bench": 10, "transfers": 0, "transfer_cost": 0}, {"gw": 13, "points": 60, "total_points": 598, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 0}, {"gw": 14, "points": 20, "total_points": 618, "rank": null, "overall_rank": null, "bench": 1, "transfers": 3, "transfer_cost": 4}, {"gw": 15, "points": 63, "total_points": 681, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 0}, {"gw": 16, "points": 47, "total_points": 728, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 4}, {"gw": 17, "points": 55, "total_points": 783, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 8}, {"gw": 18, "points": 37, "total_points": 820, "rank": null, "overall_rank": null, "bench": 9, "transfers": 2, "transfer_cost": 0}, {"gw": 19, "points": 72, "total_points": 892, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 4}, {"gw": 20, "points": 77, "total_points": 969, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 8}, {"gw": 21, "points": 58, "total_points": 1027, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 4}, {"gw": 22, "points": 60, "total_points": 1087, "rank": null, "overall_rank": null, "bench": 1, "transfers": 3, "transfer_cost": 4}, {"gw": 23, "points": 25, "total_points": 1112, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 0}, {"gw": 24, "points": 72, "total_points": 1184, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 0}, {"gw": 25, "points": 62, "total_points": 1246, "rank": null, "overall_rank": null, "bench": 3, "transfers": 3, "transfer_cost": 4}, {"gw": 26, "points": 38, "total_points": 1284, "rank": null, "overall_rank": null, "bench": 3, "transfers": 0, "transfer_cost": 4}, {"gw": 27, "points": 59, "total_points": 1343, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 0}, {"gw": 28, "points": 57, "total_points": 1400, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 4}, {"gw": 29, "points": 96, "total_points": 1496, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 0}, {"gw": 30, "points": 48, "total_points": 1544, "rank": null, "overall_rank": null, "bench": 1, "transfers": 1, "transfer_cost": 8}, {"gw": 31, "points": 24, "total_points": 1568, "rank": null, "overall_rank": null, "bench": 6, "transfers": 3, "transfer_cost": 0}, {"gw": 32, "points": 63, "total_points": 1631, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 33, "points": 43, "total_points": 1674, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 4}, {"gw": 34, "points": 75, "total_points": 1749, "rank": null, "overall_rank": null, "bench": 5, "transfers": 2, "transfer_cost": 8}]}, {"entry_id": 1000005, "player_name": "Pedro Lopes", "team_name": "Bruno's Magpies", "rank": 5, "last_rank": 5, "total_points": 1968, "event_total": 65, "gameweeks": [{"gw": 1, "points": 52, "total_points": 52, "rank": null, "overall_rank": null, "bench": 8, "transfers": 1, "transfer_cost": 0}, {"gw": 2, "points": 73, "total_points": 125, "rank": null, "overall_rank": null, "bench": 9, "transfers": 1, "transfer_cost": 0}, {"gw": 3, "points": 61, "total_points": 186, "rank": null, "overall_rank": null, "bench": 10, "transfers": 2, "transfer_cost": 0}, {"gw": 4, "points": 64, "total_points": 250, "rank": null, "overall_rank": null, "bench": 3, "transfers": 2, "transfer_cost": 0}, {"gw": 5, "points": 47, "total_points": 297, "rank": null, "overall_rank": null, "bench": 11, "transfers": 1, "transfer_cost": 0}, {"gw": 6, "points": 62, "total_points": 359, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 8}, {"gw": 7, "points": 80, "total_points": 439, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 0}, {"gw": 8, "points": 73, "total_points": 512, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 4}, {"gw": 9, "points": 46, "total_points": 558, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 0}, {"gw": 10, "points": 75, "total_points": 633, "rank": null, "overall_rank": null, "bench": 4, "transfers": 0, "transfer_cost": 4}, {"gw": 11, "points": 33, "total_points": 666, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 0}, {"gw": 12, "points": 70, "total_points": 736, "rank": null, "overall_rank": null, "bench": 10, "transfers": 2, "transfer_cost": 0}, {"gw": 13, "points": 65, "total_points": 801, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 4}, {"gw": 14, "points": 36, "total_points": 837, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 4}, {"gw": 15, "points": 69, "total_points": 906, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 0}, {"gw": 16, "points": 51, "total_points": 957, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 0}, {"gw": 17, "points": 46, "total_points": 1003, "rank": null, "overall_rank": null, "bench": 3, "transfers": 0, "transfer_cost": 0}, {"gw": 18, "points": 58, "total_points": 1061, "rank": null, "overall_rank": null, "bench": 11, "transfers": 1, "transfer_cost": 0}, {"gw": 19, "points": 33, "total_points": 1094, "rank": null, "overall_rank": null, "bench": 9, "transfers": 3, "transfer_cost": 0}, {"gw": 20, "points": 71, "total_points": 1165, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 8}, {"gw": 21, "points": 61, "total_points": 1226, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 0}, {"gw": 22, "points": 62, "total_points": 1288, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 4}, {"gw": 23, "points": 66, "total_points": 1354, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 0}, {"gw": 24, "points": 60, "total_points": 1414, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 0}, {"gw": 25, "points": 29, "total_points": 1443, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 4}, {"gw": 26, "points": 76, "total_points": 1519, "rank": null, "overall_rank": null, "bench": 10, "transfers": 3, "transfer_cost": 0}, {"gw": 27, "points": 35, "total_points": 1554, "rank": null, "overall_rank": null, "bench": 5, "transfers": 0, "transfer_cost": 4}, {"gw": 28, "points": 75, "total_points": 1629, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 4}, {"gw": 29, "points": 56, "total_points": 1685, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 8}, {"gw": 30, "points": 67, "total_points": 1752, "rank": null, "overall_rank": null, "bench": 1, "transfers": 1, "transfer_cost": 4}, {"gw": 31, "points": 37, "total_points": 1789, "rank": null, "overall_rank": null, "bench": 5, "transfers": 2, "transfer_cost": 0}, {"gw": 32, "points": 76, "total_points": 1865, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 0}, {"gw": 33, "points": 38, "total_points": 1903, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 8}, {"gw": 34, "points": 65, "total_points": 1968, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 8}]}, {"entry_id": 1000006, "player_name": "Hannah Kim", "team_name": "Vinicius Veni Vidi", "rank": 4, "last_rank": 4, "total_points": 2054, "event_total": 56, "gameweeks": [{"gw": 1, "points": 47, "total_points": 47, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 4}, {"gw": 2, "points": 69, "total_points": 116, "rank": null, "overall_rank": null, "bench": 7, "transfers": 0, "transfer_cost": 4}, {"gw": 3, "points": 79, "total_points": 195, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 8}, {"gw": 4, "points": 71, "total_points": 266, "rank": null, "overall_rank": null, "bench": 2, "transfers": 0, "transfer_cost": 0}, {"gw": 5, "points": 32, "total_points": 298, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 8}, {"gw": 6, "points": 51, "total_points": 349, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 4}, {"gw": 7, "points": 67, "total_points": 416, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 0}, {"gw": 8, "points": 82, "total_points": 498, "rank": null, "overall_rank": null, "bench": 7, "transfers": 1, "transfer_cost": 8}, {"gw": 9, "points": 69, "total_points": 567, "rank": null, "overall_rank": null, "bench": 10, "transfers": 3, "transfer_cost": 0}, {"gw": 10, "points": 62, "total_points": 629, "rank": null, "overall_rank": null, "bench": 13, "transfers": 0, "transfer_cost": 4}, {"gw": 11, "points": 82, "total_points": 711, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 4}, {"gw": 12, "points": 71, "total_points": 782, "rank": null, "overall_rank": null, "bench": 4, "transfers": 2, "transfer_cost": 4}, {"gw": 13, "points": 83, "total_points": 865, "rank": null, "overall_rank": null, "bench": 0, "transfers": 1, "transfer_cost": 4}, {"gw": 14, "points": 40, "total_points": 905, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 0}, {"gw": 15, "points": 52, "total_points": 957, "rank": null, "overall_rank": null, "bench": 12, "transfers": 3, "transfer_cost": 0}, {"gw": 16, "points": 77, "total_points": 1034, "rank": null, "overall_rank": null, "bench": 4, "transfers": 0, "transfer_cost": 0}, {"gw": 17, "points": 52, "total_points": 1086, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 0}, {"gw": 18, "points": 37, "total_points": 1123, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 4}, {"gw": 19, "points": 58, "total_points": 1181, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 0}, {"gw": 20, "points": 70, "total_points": 1251, "rank": null, "overall_rank": null, "bench": 5, "transfers": 3, "transfer_cost": 0}, {"gw": 21, "points": 68, "total_points": 1319, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 8}, {"gw": 22, "points": 20, "total_points": 1339, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 4}, {"gw": 23, "points": 89, "total_points": 1428, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 4}, {"gw": 24, "points": 66, "total_points": 1494, "rank": null, "overall_rank": null, "bench": 5, "transfers": 2, "transfer_cost": 0}, {"gw": 25, "points": 71, "total_points": 1565, "rank": null, "overall_rank": null, "bench": 2, "transfers": 3, "transfer_cost": 0}, {"gw": 26, "points": 54, "total_points": 1619, "rank": null, "overall_rank": null, "bench": 1, "transfers": 1, "transfer_cost": 0}, {"gw": 27, "points": 20, "total_points": 1639, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 4}, {"gw": 28, "points": 48, "total_points": 1687, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 8}, {"gw": 29, "points": 68, "total_points": 1755, "rank": null, "overall_rank": null, "bench": 2, "transfers": 2, "transfer_cost": 8}, {"gw": 30, "points": 51, "total_points": 1806, "rank": null, "overall_rank": null, "bench": 0, "transfers": 0, "transfer_cost": 4}, {"gw": 31, "points": 80, "total_points": 1886, "rank": null, "overall_rank": null, "bench": 8, "transfers": 2, "transfer_cost": 0}, {"gw": 32, "points": 57, "total_points": 1943, "rank": null, "overall_rank": null, "bench": 1, "transfers": 0, "transfer_cost": 8}, {"gw": 33, "points": 55, "total_points": 1998, "rank": null, "overall_rank": null, "bench": 4, "transfers": 1, "transfer_cost": 8}, {"gw": 34, "points": 56, "total_points": 2054, "rank": null, "overall_rank": null, "bench": 6, "transfers": 2, "transfer_cost": 0}]}, {"entry_id": 1000007, "player_name": "Sam Roberts", "team_name": "Foden Tomatoes", "rank": 6, "last_rank": 6, "total_points": 1942, "event_total": 71, "gameweeks": [{"gw": 1, "points": 47, "total_points": 47, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 4}, {"gw": 2, "points": 49, "total_points": 96, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 0}, {"gw": 3, "points": 40, "total_points": 136, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 4}, {"gw": 4, "points": 62, "total_points": 198, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 8}, {"gw": 5, "points": 54, "total_points": 252, "rank": null, "overall_rank": null, "bench": 9, "transfers": 0, "transfer_cost": 4}, {"gw": 6, "points": 76, "total_points": 328, "rank": null, "overall_rank": null, "bench": 2, "transfers": 1, "transfer_cost": 0}, {"gw": 7, "points": 38, "total_points": 366, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 8}, {"gw": 8, "points": 81, "total_points": 447, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 0}, {"gw": 9, "points": 59, "total_points": 506, "rank": null, "overall_rank": null, "bench": 9, "transfers": 3, "transfer_cost": 0}, {"gw": 10, "points": 56, "total_points": 562, "rank": null, "overall_rank": null, "bench": 11, "transfers": 2, "transfer_cost": 8}, {"gw": 11, "points": 40, "total_points": 602, "rank": null, "overall_rank": null, "bench": 16, "transfers": 3, "transfer_cost": 0}, {"gw": 12, "points": 90, "total_points": 692, "rank": null, "overall_rank": null, "bench": 6, "transfers": 0, "transfer_cost": 4}, {"gw": 13, "points": 53, "total_points": 745, "rank": null, "overall_rank": null, "bench": 0, "transfers": 2, "transfer_cost": 0}, {"gw": 14, "points": 41, "total_points": 786, "rank": null, "overall_rank": null, "bench": 3, "transfers": 1, "transfer_cost": 4}, {"gw": 15, "points": 54, "total_points": 840, "rank": null, "overall_rank": null, "bench": 12, "transfers": 1, "transfer_cost": 8}, {"gw": 16, "points": 75, "total_points": 915, "rank": null, "overall_rank": null, "bench": 9, "transfers": 0, "transfer_cost": 0}, {"gw": 17, "points": 55, "total_points": 970, "rank": null, "overall_rank": null, "bench": 4, "transfers": 2, "transfer_cost": 8}, {"gw": 18, "points": 81, "total_points": 1051, "rank": null, "overall_rank": null, "bench": 12, "transfers": 2, "transfer_cost": 8}, {"gw": 19, "points": 44, "total_points": 1095, "rank": null, "overall_rank": null, "bench": 7, "transfers": 2, "transfer_cost": 4}, {"gw": 20, "points": 40, "total_points": 1135, "rank": null, "overall_rank": null, "bench": 5, "transfers": 1, "transfer_cost": 0}, {"gw": 21, "points": 91, "total_points": 1226, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 8}, {"gw": 22, "points": 76, "total_points": 1302, "rank": null, "overall_rank": null, "bench": 0, "transfers": 3, "transfer_cost": 0}, {"gw": 23, "points": 84, "total_points": 1386, "rank": null, "overall_rank": null, "bench": 14, "transfers": 3, "transfer_cost": 4}, {"gw": 24, "points": 33, "total_points": 1419, "rank": null, "overall_rank": null, "bench": 11, "transfers": 0, "transfer_cost": 0}, {"gw": 25, "points": 35, "total_points": 1454, "rank": null, "overall_rank": null, "bench": 4, "transfers": 2, "transfer_cost": 4}, {"gw": 26, "points": 35, "total_points": 1489, "rank": null, "overall_rank": null, "bench": 9, "transfers": 2, "transfer_cost": 0}, {"gw": 27, "points": 45, "total_points": 1534, "rank": null, "overall_rank": null, "bench": 1, "transfers": 2, "transfer_cost": 4}, {"gw": 28, "points": 55, "total_points": 1589, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 8}, {"gw": 29, "points": 48, "total_points": 1637, "rank": null, "overall_rank": null, "bench": 9, "transfers": 1, "transfer_cost": 0}, {"gw": 30, "points": 68, "total_points": 1705, "rank": null, "overall_rank": null, "bench": 4, "transfers": 3, "transfer_cost": 0}, {"gw": 31, "points": 85, "total_points": 1790, "rank": null, "overall_rank": null, "bench": 10, "transfers": 1, "transfer_cost": 4}, {"gw": 32, "points": 28, "total_points": 1818, "rank": null, "overall_rank": null, "bench": 7, "transfers": 3, "transfer_cost": 4}, {"gw": 33, "points": 53, "total_points": 1871, "rank": null, "overall_rank": null, "bench": 3, "transfers": 3, "transfer_cost": 8}, {"gw": 34, "points": 71, "total_points": 1942, "rank": null, "overall_rank": null, "bench": 8, "transfers": 3, "transfer_cost": 0}]}]}</script>
+<script>
+(() => {
+  const raw = document.getElementById('dashboard-data').textContent;
+  const data = JSON.parse(raw);
+
+  // --- header ---
+  document.title = data.league.name + ' — FPL Dashboard';
+  document.getElementById('league-name').textContent = data.league.name;
+  document.getElementById('league-sub').textContent =
+    'Season tracker for league #' + data.league.id;
+  document.getElementById('badge-gw').textContent = data.current_gw;
+  document.getElementById('badge-count').textContent = data.managers.length;
+  const upd = new Date(data.generated_at);
+  document.getElementById('badge-updated').textContent =
+    upd.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+  // --- standings ---
+  const tbody = document.querySelector('#standings tbody');
+  data.managers
+    .slice()
+    .sort((a, b) => a.rank - b.rank)
+    .forEach((m) => {
+      const tr = document.createElement('tr');
+      const move = m.last_rank === 0 ? 0 : m.last_rank - m.rank;
+      const moveCls = move > 0 ? 'up' : move < 0 ? 'down' : 'same';
+      const moveSym = move > 0 ? '▲ ' + move : move < 0 ? '▼ ' + Math.abs(move) : '–';
+      tr.innerHTML = `
+        <td><span class="rank">${m.rank}<span class="move ${moveCls}">${moveSym}</span></span></td>
+        <td>${escapeHtml(m.player_name)}</td>
+        <td style="color:var(--muted)">${escapeHtml(m.team_name)}</td>
+        <td class="num">${m.event_total ?? '–'}</td>
+        <td class="num"><strong>${m.total_points}</strong></td>
+        <td class="num">${lastBench(m)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+  // --- charts ---
+  const palette = ['#37d4a3','#6ea8ff','#ffb454','#ff6b6b','#b388ff','#ffd166','#43c6ac','#f78fb3','#7bdcb5','#fc9d9a','#a0c4ff','#bdb2ff'];
+  const allGws = collectGws(data.managers);
+
+  // Total points trajectory
+  new Chart(document.getElementById('chart-total'), {
+    type: 'line',
+    data: {
+      labels: allGws.map((g) => 'GW ' + g),
+      datasets: data.managers.map((m, i) => ({
+        label: m.player_name,
+        data: allGws.map((gw) => {
+          const row = m.gameweeks.find((g) => g.gw === gw);
+          return row ? row.total_points : null;
+        }),
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length] + '22',
+        tension: 0.25,
+        spanGaps: true,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        borderWidth: 2,
+      })),
+    },
+    options: chartOptions({ stacked: false }),
+  });
+
+  // Last-10 GW points
+  const last10 = allGws.slice(-10);
+  new Chart(document.getElementById('chart-gw'), {
+    type: 'line',
+    data: {
+      labels: last10.map((g) => 'GW ' + g),
+      datasets: data.managers.map((m, i) => ({
+        label: m.player_name,
+        data: last10.map((gw) => {
+          const row = m.gameweeks.find((g) => g.gw === gw);
+          return row ? row.points : null;
+        }),
+        borderColor: palette[i % palette.length],
+        backgroundColor: palette[i % palette.length] + '22',
+        tension: 0.25,
+        spanGaps: true,
+        pointRadius: 3,
+        borderWidth: 2,
+      })),
+    },
+    options: chartOptions({ stacked: false }),
+  });
+
+  // --- stats ---
+  renderStats(data.managers);
+
+  // ---- helpers ----
+  function chartOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#e6e9f2', usePointStyle: true, boxWidth: 8 } },
+        tooltip: { mode: 'index', intersect: false },
+      },
+      scales: {
+        x: { grid: { color: '#232a3d' }, ticks: { color: '#8a93a8' } },
+        y: { grid: { color: '#232a3d' }, ticks: { color: '#8a93a8' } },
+      },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+    };
+  }
+
+  function collectGws(managers) {
+    const set = new Set();
+    managers.forEach((m) => m.gameweeks.forEach((g) => set.add(g.gw)));
+    return Array.from(set).sort((a, b) => a - b);
+  }
+
+  function lastBench(m) {
+    const last = m.gameweeks[m.gameweeks.length - 1];
+    return last ? last.bench : '–';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function renderStats(managers) {
+    const flat = [];
+    managers.forEach((m) =>
+      m.gameweeks.forEach((g) =>
+        flat.push({ ...g, name: m.player_name, team: m.team_name })
+      )
+    );
+    if (flat.length === 0) return;
+
+    const highest = flat.reduce((a, b) => (b.points > a.points ? b : a));
+    const lowest = flat.reduce((a, b) => (b.points < a.points ? b : a));
+
+    let mostBench = flat.reduce((a, b) => (b.bench > a.bench ? b : a));
+
+    // Biggest mover this GW
+    const movers = managers
+      .map((m) => ({ name: m.player_name, move: (m.last_rank || m.rank) - m.rank }))
+      .filter((x) => Number.isFinite(x.move));
+    const climber = movers.reduce((a, b) => (b.move > a.move ? b : a), { move: -Infinity });
+    const faller = movers.reduce((a, b) => (b.move < a.move ? b : a), { move: Infinity });
+
+    const tiles = [
+      {
+        label: 'Highest GW score',
+        value: highest.points + ' pts',
+        who: `${highest.name} · GW ${highest.gw}`,
+      },
+      {
+        label: 'Lowest GW score',
+        value: lowest.points + ' pts',
+        who: `${lowest.name} · GW ${lowest.gw}`,
+      },
+      {
+        label: 'Most points benched',
+        value: mostBench.bench + ' pts',
+        who: `${mostBench.name} · GW ${mostBench.gw}`,
+      },
+      {
+        label: 'Climber of the week',
+        value: climber.move > 0 ? '▲ ' + climber.move : '–',
+        who: climber.move > 0 ? climber.name : 'No movement',
+      },
+    ];
+
+    const host = document.getElementById('stats');
+    tiles.forEach((t) => {
+      const el = document.createElement('div');
+      el.className = 'stat';
+      el.innerHTML = `
+        <div class="label">${t.label}</div>
+        <div class="value">${t.value}</div>
+        <div class="who">${escapeHtml(t.who)}</div>
+      `;
+      host.appendChild(el);
+    });
+  }
+})();
+</script>
+</body>
+</html>
